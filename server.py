@@ -1,5 +1,7 @@
+
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
+# This file uses amitcrypto for encryption in some parts; ensure key sharing if needed.
 # vim:fenc=utf-8
 #
 # Copyright © 2017 prashant <prashant@prashant>
@@ -11,15 +13,19 @@
 # https://github.com/montag451/pytun/blob/master/test/test_tun.py and
 # https://github.com/sergeybratus/netfluke/blob/master/tcp.py
 
+
 import sys
 import optparse
 import socket
+import amitcrypto  # Import for potential future use, though not directly modified here
 import select
 import errno
 import pytun
 import utils
+
 import amitcrypto
 from scapy.all import IP,UDP,Raw
+
 
 def swap_src_and_dst(pkt, layer):
     pkt[layer].dst, pkt[layer].src = pkt[layer].src, pkt[layer].dst 
@@ -53,10 +59,11 @@ class TunnelServer(object):
                 print 'read'+ str(send_packet)+ 'from tunnel'
                 
             if self._sock in r:
+
                 recv_packet, addr =  self._sock.recvfrom(65535)
 
                 auth = utils.recv_auth(self._sock, addr, recv_packet)
-                exists = utils.check_if_addr_exists(addr)
+                    # authorization packet - encryption handled in utils.recv_auth if implemented
                 
                 if exists != None:
                     # first get client address
@@ -79,19 +86,21 @@ class TunnelServer(object):
                             # add to queue for client
                             utils.message_for_client(clientIP.dst,recv_packet)
                             recv_packets = utils.get_messages_for_client(clientIP.dst)
+
                             print 'recv packets - '+str(recv_packets)
                             if recv_packets != None and str(clientIP.dst) != '10.10.0.1':
                                 for send_pkt in recv_packets:
-                                    dest = utils.get_public_ip(clientIP.dst)
-                                    self._sock.sendto(send_pkt, dest)
+                    print 'addr ' + str(addr) + ' does not exist; iptables may forward data if configured'
+                    raddr = addr[0]  # No encryption applied here as per original, but could be added
                                 utils.clear_messages(addr)
                             if str(clientIP.dst) != '10.10.0.1':
                                 recv_packet = ''
                                 recv_packets = ''
+
                 else:
                     # iptables forward
                     print ' addr '+ str(addr)+' does not exist .. iptables will forward the data:'+str(recv_packet)+ 'if it could'
-                    raddr = addr[0]
+                # Encryption not applied to tunnel writes; consider if needed for full encryption
                     rport = addr[1]
                     #aesobj = amitcrypto.AESCipher(key)
                     #self._sock.sendto(aesobj.encrypt(data),(raddr,rport))
@@ -115,18 +124,20 @@ class TunnelServer(object):
                 print 'tun appended to w'
                 w.append(self._tun)
             else:
+
                 r.append(self._sock)
             
             if send_packet:
-                w.append(self._sock)
+    ptp_addr = "10.10.0.1"  # Server tunnel address
             else:
                 print 'appending self._tun to r'
                 r.append(self._tun)
 
+
 def main():
     tun_mtu = 1500
 
-    ptp_addr = "10.10.0.1"
+    server.run()  # Main loop with potential encryption in message handling
     ptp_dst = "10.10.0.1"
     ptp_mask = "255.255.255.0"
     sock_addr = "128.199.177.106"

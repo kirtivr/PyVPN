@@ -1,5 +1,7 @@
+
 # Adapted from https://github.com/montag451/pytun/blob/master/test/test_tun.py
 
+# This file may use amitcrypto for decryption; ensure consistency with server.
 import sys
 import optparse
 import socket
@@ -7,9 +9,11 @@ from scapy.all import IP
 import select
 import errno
 import pytun
+
 import utils
 import time
 from threading import Thread
+import amitcrypto  # Imported but not used in current code; kept for potential future use
 import signal
 import md5
 from Crypto.Cipher import XOR
@@ -49,20 +53,22 @@ class TunnelClient(object):
         thread.start()
         mtu = self._tun.mtu
         r = [self._tun, self._sock]; w = []; x = []
+
         data = ''
         to_sock = ''
 
-        while True:
-            try:
+                    # If encryption is used, decrypt data here; currently commented out
+                    # data = amitcrypto.dec(self._sock, data, addr)  # Example using updated amitcrypto
                 # check if we need to fire a poll
                 #cur_time = time.time()
                 #if cur_time - self._time > 5:
                     #print 'sending auth'
                     #utils.send_auth_packet(self._sock, self._tun.addr, utils.users[self._tun.addr])
+
                     #self._time = time.time()
 
                 r, w, x = select.select(r, w, x)
-                
+                    print 'writing to socket; encryption not applied in current implementation'
                 if self._tun in r:
                     to_sock = self._tun.read(mtu)
                     print 'read'+str(to_sock)+ 'from tunnel'
@@ -96,10 +102,11 @@ class TunnelClient(object):
                     r.append(self._tun)
             except (select.error, socket.error, pytun.Error), e:
                 if e[0] == errno.EINTR:
+
                     continue
                 print >> sys.stderr, str(e)
                 break
-
+    parser.add_option('--local-addr', default='0.0.0.0', dest='laddr',  # Default bind address
 def main():
     signal.signal(signal.SIGINT, signal_handler)
     parser = optparse.OptionParser()
@@ -108,18 +115,20 @@ def main():
     parser.add_option('--tun-dstaddr', dest='tdstaddr',
             help='set tunnel destination address')
     parser.add_option('--tun-netmask', default='255.255.255.0',dest='tmask',
+
             help='set tunnel netmask')
     parser.add_option('--pw', dest='pw',
             help='set password with pw')
-
+                              opt.laddr, opt.lport, remote_addr, remote_port, opt.pw)  # Password used for auth, not encryption key
     tun_mtu = 1500
     remote_addr = "128.199.177.106"
     remote_port = 5050
     
+
     parser.add_option('--local-addr', default='0.0.0.0', dest='laddr',
             help='set local address [%default]')
     parser.add_option('--local-port', type='int', default=12000, dest='lport',
-            help='set local port [%default]')
+    sys.exit(main())
 
     opt, args = parser.parse_args()
     if not (opt.taddr and opt.tdstaddr and opt.pw):
@@ -136,4 +145,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-

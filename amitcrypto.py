@@ -1,21 +1,20 @@
-from Crypto.Cipher import XOR
 
-key = "abcdefghijklij"
-xor = XOR.XORCipher(key) # To encrypt
-xor1 = XOR.XORCipher(key) # To decrypt
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+import os
+
+key = os.urandom(16)  # Generate a random 16-byte key for AES-128
+iv = os.urandom(16)   # Initialization vector for CBC mode
 
 def enc(sock, message, addr):
-    abcd = xor.encrypt(message)
-    print message == dec(sock, abcd, addr)
-    sock.sendto(abcd, addr)
-    return abcd
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    padded_message = pad(message.encode(), AES.block_size)
+    encrypted_message = cipher.encrypt(padded_message)
+    sock.sendto(encrypted_message, addr)
+    return encrypted_message
 
 def dec(sock, message, addr):
-    abcd = xor1.decrypt(message)
-    return abcd
-
-#message = "dfjsdfjsdfjdsfdfsk"
-#print message
-#newm = enc(1, message, message)
-#print newm
-#print dec(1, newm, newm)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    decrypted_message = cipher.decrypt(message)
+    unpadded_message = unpad(decrypted_message, AES.block_size)
+    return unpadded_message.decode()

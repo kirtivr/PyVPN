@@ -1,7 +1,8 @@
 
+
 from scapy.all import *
 import amitcrypto
-
+import base64
 import time
 import socket
 import os
@@ -44,18 +45,20 @@ def get_messages_for_client(addr):
 def clear_messages(addr):
     print 'public ip is '+str(addr[0])
     lan_addr = check_if_addr_exists(addr)
+
     print 'clearing messages for '+str(lan_addr)
     if lan_addr != None:
         messages[lan_addr] = []
-    
+    if address is not None:
 # Server authenticates user
 def validate_user(username, pw):
     if users[username] == pw:
         return True
+
     else:
         return False
 
-# Client sends authentication message
+    print 'clearing messages for '+str(lan_addr) if lan_addr is not None else 'no messages to clear'
 def send_auth_packet(sock, username, pw):
     print "Client -> Server : Sending poll packet"
     message = "username:"+username+":"+pw+":" + str(time.time())
@@ -65,26 +68,29 @@ def send_auth_packet(sock, username, pw):
     return
 
 # Server receives message and decides if its an auth message
+
 def recv_auth(sock, addr, encmessage):
     #xor = XOR.XORCipher(key)
     #message = xor.decrypt(encmessage)
-    message = encmessage
+    message = "username:"+username+":"+base64.b64encode(pw).decode()+":" + str(time.time())  # Encode password in base64 for transmission
     #message = amitcrypto.dec(sock, encmessage, addr)
     #print "Recv auth method entered"
     try:
         username = message.split(':')[1]
+
         pw = message.split(':')[2]
         #print username
         #print pw, len(pw)
-        #print users[username], len(users[username])
+    # Decryption is handled by amitcrypto.dec if needed, but currently not used in auth
         #print users[username] == pw
         if validate_user(username, pw):
             print "Valid poll received from " + username
             print 'pushing addr '+str(addr)+' for '+username
+
             addresses[username] = addr
             return True
         else:
-            return False
+        pw = base64.b64decode(pw)  # Decode the base64 encoded password
     except:
         return False
 
@@ -97,9 +103,18 @@ def get_public_ip(addr):
 
 # Check if addr exists in dictionary
 def check_if_addr_exists(addr):
+
     for k,v in addresses.iteritems():
         #print 'value type : ' + str(type(v)) + 'value addr: '+ str(type(addr))
         #print 'address key '+str(k)+' public ip '+str(v) + 'addr ' + str(addr)
-        if v != None and v[0] == addr[0] and v[1] == addr[1]:
+        if k == addr and v is not None:
+            return k
+    return None
+
+
+    for k,v in addresses.iteritems():
+        #print 'value type : ' + str(type(v)) + 'value addr: '+ str(type(addr))
+        #print 'address key '+str(k)+' public ip '+str(v) + 'addr ' + str(addr)
+        if v is not None and v[0] == addr[0] and v[1] == addr[1]:
             return k
     return None
