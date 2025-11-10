@@ -11,10 +11,14 @@ import utils
 import time
 from threading import Thread
 import signal
+import signal
 import md5
-from Crypto.Cipher import XOR
+import md5
+import amitcrypto
 
 def signal_handler(signal, frame):
+    print('You pressed Ctrl+C!')
+
     print('You pressed Ctrl+C!')
     sys.exit(0)
 
@@ -41,14 +45,16 @@ class TunnelClient(object):
     def every_five_seconds(self):
         while True:
             utils.send_auth_packet(self._sock, self._tun.addr, self._rpw)
-            time.sleep(1)
+            time.sleep(5)
     
     def run(self):
         thread = Thread(target = self.every_five_seconds)
-        thread.daemon = True
-        thread.start()
-        mtu = self._tun.mtu
-        r = [self._tun, self._sock]; w = []; x = []
+        data = ''
+
+        self._sock.bind((laddr, lport))
+        self._raddr = raddr
+        self._rport = rport
+        self._rpw = md5.new(rpw).digest()
         data = ''
         to_sock = ''
 
@@ -60,8 +66,6 @@ class TunnelClient(object):
                     #print 'sending auth'
                     #utils.send_auth_packet(self._sock, self._tun.addr, utils.users[self._tun.addr])
                     #self._time = time.time()
-
-                r, w, x = select.select(r, w, x)
                 
                 if self._tun in r:
                     to_sock = self._tun.read(mtu)
@@ -69,24 +73,28 @@ class TunnelClient(object):
                     
                 if self._sock in r:
                     data, addr = self._sock.recvfrom(65535)
-                    #aesobj = amitcrypto.AESCipher(key)
-                    #data = aesobj.decrypt(data)
-                    #data = aesobj.decrypt(data)
-                    print 'received ' + data
                     if addr[0] != self._raddr or addr[1] != self._rport:
-                        data = '' # drop packet
-                if self._tun in w:
-                    print 'writing to tunnel'
-                    self._tun.write(data)
+                        data = ''
+                    else:
+                        data = amitcrypto.dec(self._sock, data, addr)
+                    print 'received ' + data
                     data = ''
                 if self._sock in w:
                     print 'writing to socket'
-                    #to_sock = "test"+to_sock+"test"
-                    self._sock.sendto(to_sock, (self._raddr, self._rport))
+                    amitcrypto.enc(self._sock, to_sock, (self._raddr, self._rport))
                     to_sock = ''
-                        
+                    #to_sock = "test"+to_sock+"test"
+                    
                 r = []; w = []
                 if data:
+                    w.append(self._tun)
+
+
+                r, w, x = select.select(r, w, x)
+                
+                if self._tun in r:
+                    to_sock = self._tun.read(mtu)
+                    print 'read'+str(to_sock)+ 'from tunnel'
                     w.append(self._tun)
                 else:
                     r.append(self._sock)

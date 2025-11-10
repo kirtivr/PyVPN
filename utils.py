@@ -60,40 +60,46 @@ def send_auth_packet(sock, username, pw):
     print "Client -> Server : Sending poll packet"
     message = "username:"+username+":"+pw+":" + str(time.time())
     
-    #amitcrypto.enc(sock, message, (SERVER_UDP_IP, 5050))
-    sock.sendto(message, (SERVER_UDP_IP, 5050))
+    amitcrypto.enc(sock, message, (SERVER_UDP_IP, SERVER_UDP_PORT))
     return
 
 # Server receives message and decides if its an auth message
 def recv_auth(sock, addr, encmessage):
+
+def recv_auth(sock, addr, encmessage):
     #xor = XOR.XORCipher(key)
     #message = xor.decrypt(encmessage)
-    message = encmessage
+def recv_auth(sock, addr, encmessage):
+    #xor = XOR.XORCipher(key)
+    #message = xor.decrypt(encmessage)
+    # message is already decrypted by caller
     #message = amitcrypto.dec(sock, encmessage, addr)
     #print "Recv auth method entered"
     try:
-        username = message.split(':')[1]
-        pw = message.split(':')[2]
+        parts = message.split(':')
+        if len(parts) < 3:
+            return None
+        username = parts[1]
+        pw = parts[2]
         #print username
         #print pw, len(pw)
         #print users[username], len(users[username])
         #print users[username] == pw
-        if validate_user(username, pw):
+        if username in users and validate_user(username, pw):
             print "Valid poll received from " + username
             print 'pushing addr '+str(addr)+' for '+username
             addresses[username] = addr
-            return True
+            return username
         else:
-            return False
+            return None
     except:
-        return False
+        return None
 
 # get public ip for user
 def get_public_ip(addr):
-    for k,v in addresses.iteritems():
-        if k == addr:
-            return v
-    return None
+
+
+    message = encmessage
 
 # Check if addr exists in dictionary
 def check_if_addr_exists(addr):
