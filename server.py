@@ -39,7 +39,7 @@ class TunnelServer(object):
 
     def run(self):
         mtu = self._tun.mtu
-        r = [self._tun, self._sock]; w = []; x = []
+
         send_info = ''
         recv_packet = ''
         send_packet = ''
@@ -48,43 +48,84 @@ class TunnelServer(object):
             r, w, x = select.select(r, w, x)
 
             if self._tun in r:
+
+        mtu = self._tun.mtu
+        r = [self._tun, self._sock]; w = []; x = []
+            if self._tun in r:
+                print 'tun read triggered'
+                send_packet = self._tun.read(mtu)
+                print 'read'+ str(send_packet)+ 'from tunnel'
                 print 'tun read triggered'
                 send_packet = self._tun.read(mtu)
                 print 'read'+ str(send_packet)+ 'from tunnel'
                 
             if self._sock in r:
+                recv_packet, addr = self._sock.recvfrom(65535)
+
+                exists = utils.check_if_addr_exists(addr)
+                recv_packet_decrypted = None
+                is_encrypted_handled = False
+                if exists is not None:
+                    try:
+                        recv_packet_decrypted = amitcrypto.dec(self._sock, recv_packet, addr)
+                    except ValueError:
+                        continue
+                else:
+                    try:
+                        recv_packet_decrypted = amitcrypto.dec(self._sock, recv_packet, addr)
+                    except ValueError:
+                        pass
+                if recv_packet_decrypted is not None:
+                    username = utils.recv_auth(self._sock, addr, recv_packet_decrypted)
+                    if username is not None:
+                        queued = utils.get_messages_for_client(username)
+                        if queued is not None and addr[0] != utils.SERVER_UDP_IP:
+                            for send_pkt in queued:
+                                amitcrypto.enc(self._sock, send_pkt, addr)
+                            utils.clear_messages(addr)
+                        is_encrypted_handled = True
+                        recv_packet = ''
+                    else:
+                        curr_exists = utils.check_if_addr_exists(addr)
+                        if curr_exists is None:
+                            is_encrypted_handled = True
+                            recv_packet = ''
+                        else:
+                            utils.receive_non_auth_message(recv_packet_decrypted)
+                            clientIP = IP(recv_packet_decrypted)
+                            print 'sender: '+str(clientIP.src)+' receiver: '+str(clientIP.dst)
+                            utils.message_for_client(str(clientIP.dst), recv_packet_decrypted)
+                            queued = utils.get_messages_for_client(str(clientIP.dst))
+                            print 'recv packets - '+str(queued)
+                            if queued is not None and str(clientIP.dst) != '10.10.0.1':
+                                dest = utils.get_public_ip(str(clientIP.dst))
+                                for send_pkt in queued:
+                                    amitcrypto.enc(self._sock, send_pkt, dest)
+                                utils.clear_messages(dest)
+                            if str(clientIP.dst) == '10.10.0.1':
+
+            if self._sock in w:
+                ip_pkt = IP(send_packet)
+                send_addr = utils.get_public_ip(ip_pkt.dst)
+                amitcrypto.enc(self._sock, send_packet, send_addr)
+                send_packet = ''
+
+            r = []; w = []
+
+            if recv_packet:
+                print 'tun appended to w'
+                w.append(self._tun)
+            else:
+                r.append(self._sock)
+            
+            if send_packet:
+                w.append(self._sock)
+                print 'appending self._tun to r'
+
+                
+            if self._sock in r:
                 recv_packet, addr =  self._sock.recvfrom(65535)
 
-                auth = utils.recv_auth(self._sock, addr, recv_packet)
-                exists = utils.check_if_addr_exists(addr)
-                
-                if exists != None:
-                    # first get client address
-                    clientIP = IP(recv_packet)
-                    # authorization packet
-                    if auth == True:
-                        if clientIP:
-                            # get message queue and send one by one
-                            recv_packets = utils.get_messages_for_client(clientIP.src)
-                            if recv_packets != None and (addr[0] != SERVER_UDP_IP):
-                                for send_pkt in recv_packets:
-                                    self._sock.sendto(send_pkt, addr)
-                                utils.clear_messages(addr)
-                            recv_packet = ''
-                            recv_packets = ''
-                    else:
-                        utils.receive_non_auth_message(recv_packet)
-                        if clientIP:
-                            print 'sender: '+str(clientIP.src)+' receiver: '+str(clientIP.dst)
-                            # add to queue for client
-                            utils.message_for_client(clientIP.dst,recv_packet)
-                            recv_packets = utils.get_messages_for_client(clientIP.dst)
-                            print 'recv packets - '+str(recv_packets)
-                            if recv_packets != None and str(clientIP.dst) != '10.10.0.1':
-                                for send_pkt in recv_packets:
-                                    dest = utils.get_public_ip(clientIP.dst)
-                                    self._sock.sendto(send_pkt, dest)
-                                utils.clear_messages(addr)
                             if str(clientIP.dst) != '10.10.0.1':
                                 recv_packet = ''
                                 recv_packets = ''
